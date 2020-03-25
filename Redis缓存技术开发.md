@@ -50,7 +50,9 @@ redis大多时候都是作为缓存来整合到项目中的。为什么要使用
 
 ### Redis缓存使用 ###
 
-我这里的缓存都是使用spring boot来开发整合，具体配置步骤参见这篇文章[spring boot整合Redis](https://github.com/Lumnca/Spring-Boot/blob/master/Spring%20Boot%E6%95%B4%E5%90%88NoSql.md)
+首先先使用spring boot整合redis 具体配置步骤参见这篇文章[spring boot整合Redis](https://github.com/Lumnca/Spring-Boot/blob/master/Spring%20Boot%E6%95%B4%E5%90%88NoSql.md)
+
+然后再来使用缓存，参见[Redis缓存](https://github.com/Lumnca/Spring-Boot/blob/master/%E7%BC%93%E5%AD%98.md)
 
 关于代码上面这里面都有介绍。
 
