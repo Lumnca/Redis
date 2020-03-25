@@ -13,3 +13,30 @@ redis大多时候都是作为缓存来整合到项目中的。为什么要使用
 ![as](https://github.com/Lumnca/Redis/blob/master/img/a2.png)
 
 这是一个从数据库中查询一本书的数据接口， 可以看到响应速度只有几ms，这取决于数据库的数据数量和接口实现的业务逻辑。我这里的数据只有1800条所以看不到太大的延迟，但是我们稍微提升了一下并发量在100左右
+
+![](https://github.com/Lumnca/Redis/blob/master/img/a3.png)
+
+可见大多数访问延时都有几百ms，比单个访问也高了一百倍左右。如果继续提升并发量，更能看出这个响应延迟。
+
+接下来我们看下缓存的访问时延，在已经有了缓存数据的情况下：
+
+![](https://github.com/Lumnca/Redis/blob/master/img/a4.png)
+
+可以看到普遍都是几ms的延迟这是由于这个接口的数据所要返回的数据已被写入缓存，我们来看下这个接口的缓存逻辑：
+
+```java
+  @Cacheable(value = "c1")
+    public String getBookById(Integer id){
+        System.out.println("==================GetBookByID("+id+")==================");
+        return JSON.toJSONString(bookDao.getOne(id));
+    }
+```
+
+这是spring boot所集成的redis功能，其中@Cacheable(value = "c1")是使用缓存，只要这个方法第一次被访问就会被写入缓存，由于缓存是key-value型的，这里就会把方法参数作为key值，其方法返回值的内容作为value值。并设置了缓存过期的时间，在这段时间内，如果访问这个方法的参数在缓存中存在，那么这个步骤将不会被再次执行，其中的打印语句System.out.println也不会再次执行。
+
+所以像这样所有被访问的接口参数都会被写入缓存，下一次再次访问就从内存中读取，而不走数据库，因此提高了访问速度。
+
+
+
+
+
