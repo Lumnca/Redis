@@ -32,7 +32,7 @@ redis大多时候都是作为缓存来整合到项目中的。为什么要使用
 
 ![](https://github.com/Lumnca/Redis/blob/master/img/a4.png)
 
-可以看到普遍都是几ms的延迟这是由于这个接口的数据所要返回的数据已被写入缓存，我们来看下这个接口的缓存逻辑：
+可以看到普遍都是几ms的延迟，即使增加并发量所用的延迟依然是几ms，这是由于这个接口的数据所要返回的数据已被写入缓存，我们来看下这个接口的缓存逻辑：
 
 ```java
   @Cacheable(value = "c1")
@@ -151,19 +151,19 @@ RDB的缺点在于2个方面，首先在redis故障的时候，RDB由于它是�
 
 ![](https://github.com/Lumnca/Redis/blob/master/img/a12.png)
 
-appendonly：默认值为no，也就是说redis 默认使用的是rdb方式持久化，如果**想要开启 AOF 持久化方式，需要将 appendonly 修改为 yes**。
+`appendonly`：默认值为no，也就是说**redis 默认使用的是rdb方式持久化，如果想要开启 AOF 持久化方式，需要将 appendonly 修改为 yes**。
 
-appendfilename ：aof文件名，默认是"appendonly.aof"
+`appendfilename` ：aof文件名，默认是"appendonly.aof"
 
-appendfsync：aof持久化策略的配置；no表示不执行fsync，由操作系统保证数据同步到磁盘，速度最快，但是不太安全；always表示每次写入都执行fsync，以保证数据同步到磁盘，效率很低；everysec表示每秒执行一次fsync，可能会导致丢失这1s数据。通常选择 everysec ，兼顾安全性和效率。
+`appendfsync`：aof持久化策略的配置；no表示不执行fsync，由操作系统保证数据同步到磁盘，速度最快，但是不太安全；always表示每次写入都执行fsync，以保证数据同步到磁盘，效率很低；everysec表示每秒执行一次fsync，可能会导致丢失这1s数据。通常选择 everysec ，兼顾安全性和效率。
 
-no-appendfsync-on-rewrite：在aof重写或者写入rdb文件的时候，会执行大量IO，此时对于everysec和always的aof模式来说，执行fsync会造成阻塞过长时间，no-appendfsync-on-rewrite字段设置为默认设置为no。如果对延迟要求很高的应用，这个字段可以设置为yes，否则还是设置为no，这样对持久化特性来说这是更安全的选择。  设置为yes表示rewrite期间对新写操作不fsync,暂时存在内存中,等rewrite完成后再写入，默认为no，建议yes。Linux的默认fsync策略是30秒。可能丢失30秒数据。默认值为no。
+`no-appendfsync-on-rewrite`：在aof重写或者写入rdb文件的时候，会执行大量IO，此时对于everysec和always的aof模式来说，执行fsync会造成阻塞过长时间，no-appendfsync-on-rewrite字段设置为默认设置为no。如果对延迟要求很高的应用，这个字段可以设置为yes，否则还是设置为no，这样对持久化特性来说这是更安全的选择。  设置为yes表示rewrite期间对新写操作不fsync,暂时存在内存中,等rewrite完成后再写入，默认为no，建议yes。Linux的默认fsync策略是30秒。可能丢失30秒数据。默认值为no。
 
-auto-aof-rewrite-percentage：默认值为100。aof自动重写配置，当目前aof文件大小超过上一次重写的aof文件大小的百分之多少进行重写，即当aof文件增长到一定大小的时候，Redis能够调用bgrewriteaof对日志文件进行重写。当前AOF文件大小是上次日志重写得到AOF文件大小的二倍（设置为100）时，自动启动新的日志重写过程。
+`auto-aof-rewrite-percentage`：默认值为100。aof自动重写配置，当目前aof文件大小超过上一次重写的aof文件大小的百分之多少进行重写，即当aof文件增长到一定大小的时候，Redis能够调用bgrewriteaof对日志文件进行重写。当前AOF文件大小是上次日志重写得到AOF文件大小的二倍（设置为100）时，自动启动新的日志重写过程。
 
-auto-aof-rewrite-min-size：64mb。设置允许重写的最小aof文件大小，避免了达到约定百分比但尺寸仍然很小的情况还要重写。
+`auto-aof-rewrite-min-size`：64mb。设置允许重写的最小aof文件大小，避免了达到约定百分比但尺寸仍然很小的情况还要重写。
 
-aof-load-truncated：aof文件可能在尾部是不完整的，当redis启动的时候，aof文件的数据被载入内存。重启可能发生在redis所在的主机操作系统宕机后，尤其在ext4文件系统没有加上data=ordered选项，出现这种现象  redis宕机或者异常终止不会造成尾部不完整现象，可以选择让redis退出，或者导入尽可能多的数据。如果选择的是yes，当截断的aof文件被导入的时候，会自动发布一个log给客户端然后load。如果是no，**用户必须手动redis-check-aof修复AOF文件才可以**。默认值为 yes。
+`aof-load-truncated`：aof文件可能在尾部是不完整的，当redis启动的时候，aof文件的数据被载入内存。重启可能发生在redis所在的主机操作系统宕机后，尤其在ext4文件系统没有加上data=ordered选项，出现这种现象  redis宕机或者异常终止不会造成尾部不完整现象，可以选择让redis退出，或者导入尽可能多的数据。如果选择的是yes，当截断的aof文件被导入的时候，会自动发布一个log给客户端然后load。如果是no，**用户必须手动redis-check-aof修复AOF文件才可以**。默认值为 yes。
 
 
 想要开启aof持久化，只需要将 appendonly的值no 修改为 yes即可。 重启 Redis 之后就会进行 AOF 文件的载入。异常修复命令：`redis-check-aof --fix` 进行修复
