@@ -4,6 +4,8 @@
 
 :arrow_down:[Redis缓存使用](#a2)
 
+:arrow_down:[Redis缓存常见问题](#a3)
+
 <p id="a1"></p>
 
 ### Redis缓存简介 ###
@@ -54,8 +56,33 @@ redis大多时候都是作为缓存来整合到项目中的。为什么要使用
 
 然后再来使用缓存，参见[Redis缓存](https://github.com/Lumnca/Spring-Boot/blob/master/%E7%BC%93%E5%AD%98.md)
 
-关于代码上面这里面都有介绍。
+关于代码介绍上面这里面都有介绍。这里不做说明。
 
+:arrow_down:[Redis缓存常见问题](#a3)
+
+<p id="a3"></p>
+
+### Redis缓存常见问题 ###
+
+**redis的持久化机制**
+
+我们知道redis的数据都是存储在内容中，那么redis实例挂了或者重启了怎么办？那是不是我们的数据就全没了？其实redis提供了持久化来解决这类问题。首先来看下这个过程：
+
+首先我们添加了一个name值为lumnca，接下来我们将这个redis服务进程关闭
+
+![](https://github.com/Lumnca/Redis/blob/master/img/a6.png)
+
+再次启动redis，查看值：
+
+![](https://github.com/Lumnca/Redis/blob/master/img/a7.png)
+
+可见依然存在这是为什么呢？其实是redis通过**RDB和AOF机制**来实现了持久化。
+
+***RDB持久化***机制原理是对redis中的数据执行者周期性的持久化，是redis默认的持久化机制，他的默认持久化策略是如果在900S之内执行了一次数据变更操作，或者在300S内执行了10次，再或者在60s执行了10000次，那么在这个900S、300S、60S将会生成一个redis数据快照文件。
+
+***AOF持久化***机制对每条redis的写入指令都会做一条日志，以append-only的模式写入一个日志文件中，在redis重启的时候会回放日志文件中的指令来重新构建数据，它默认我没记错的话会每秒保存一个文件。
+
+如果同时启用了RDB和AOF的话，redis会使用AOF来恢复数据，因为AOF的数据会更加完整。在我们实际生产使用中，可以定期把RDB和AOF做备份到云服务器来做灾难恢复，数据恢复。
 
 
 
