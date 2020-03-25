@@ -85,4 +85,18 @@ redis大多时候都是作为缓存来整合到项目中的。为什么要使用
 如果同时启用了RDB和AOF的话，redis会使用AOF来恢复数据，因为AOF的数据会更加完整。在我们实际生产使用中，可以定期把RDB和AOF做备份到云服务器来做灾难恢复，数据恢复。
 
 
+我们可以在redis目录中查看这两个文件dump.rdb,appendonly.aof ：
+
+![](https://github.com/Lumnca/Redis/blob/master/img/a9.png)
+
+这两个文件可以在redis.conf配置文件中查看存放位置,我们尝试文本模式打开这两个文件：
+
+rdb文件
+
+![](https://github.com/Lumnca/Redis/blob/master/img/a8.png)
+
+aof文件
+
+![](https://github.com/Lumnca/Redis/blob/master/img/a10.png)
+
 
