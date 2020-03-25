@@ -10,4 +10,6 @@ redis大多时候都是作为缓存来整合到项目中的。为什么要使用
 
 一个普通的数据库访问API所耗时：
 
-![](https://github.com/)Lumnca/Redis/blob/master/%E5%9B%BE%E7%89%87/a2.png)
+![as](https://github.com/Lumnca/Redis/blob/master/img/a2.png)
+
+这是一个从数据库中查询一本书的数据接口， 可以看到响应速度只有几ms，这取决于数据库的数据数量和接口实现的业务逻辑。我这里的数据只有1800条所以看不到太大的延迟，但是我们稍微提升了一下并发量在100左右
