@@ -189,5 +189,40 @@ AOF机制的缺点：
 
 其实我们应该两者一起使用的，用**AOF来保证尽可能的不丢失数据**，作为数据恢复的第一选择，**利用RDB来做冷备**，当AOF丢失或者不可用的时候来使用RDB快照来快速回复。如果单一选择RDB的话对比AOF可能会丢失部分数据，选择AOF的换又没有RDB回复的速度快而且AOF的备份很复杂。(经过验证，在Redis 5.0.5版本中，如果同时开启RDB和AOF进行持久化，在重启Redis时，只会加载AOF文件!!!)
 
+***
 
-未完待续...
+**:two:redis的cluster模式**
+
+**简介**
+
+redis的cluster模式自动将数据分片，每个master上放部分数据，每个master可以挂slave节点。redis的cluster模式提供了一定程度的可用性，当某些节点发生故障或者无法通信时，集群能够继续正常运行。
+
+**存储**
+
+redis-cluster采用的分布式存储算法为hash slot，redis-cluster有固定的16384个hash slot对每个key计算CRC16值，然后对16384取模，就可以获取key对应的hash slot。redis-cluster会把hash-slot分散到各个master上，这样每一个master都会持有部分数据，当增加或者删除一个master，只需要移动hash slot则可，hash slot的移动成本很低。
+
+如下图所示我们在上面添加数据，都会被随机分散到不同节节点上去，并且每当你要访问这个数据时，会跳转至改节点：
+
+![](https://github.com/Lumnca/Redis/blob/master/img/a14.png)
+
+
+如果客户端想要把某些数据存储到同一个hash slot，可以通过api的hash tag来实现。
+
+**gossip协议**
+
+gossip协议包含多种消息，包括ping，pong，meet，fail，等等。
+
+* meet：某个节点发送meet给新加入的节点，让新节点加入集群中，然后新节点就会开始与其他节点进行通信，其实内部就是发送了一个gossip meet消息，给新加入的节点，通知那个节点去加入我们的集群。
+
+* ping：每个节点都会频繁给其他节点发送ping，其中包含自己的状态还有自己维护的集群元数据，互相通过ping交换元数据，每个节点每秒都会频繁发送ping给其他的集群，ping，频繁的互相之间交换数据，互相进行元数据的更新。
+
+* pong：返回ping和meet，包含自己的状态和其他信息，也可以用于信息广播和更新。
+
+* fail：某个节点判断另一个节点fail之后，就发送fail给其他节点，通知其他节点，指定的节点宕机了。
+
+**高可用性和主备切换原理**
+
+一个节点在cluster-node-timeout内没有收到某一个节点的pong，那么它就会认为这个节点pfail了，它会在ping给其他节点，当超过半数节点都认为某个节点pfail了，那么那个节点就fail了。
+
+对宕机的master node，redis cluster会从其所有的slave node中，选择一个切换成master node。它首先会检查每个slave node和master node断开连接的时间，如果超过了cluster-node-timeout * cluster-slave-validity-factor，那么这个slave node就没有资格成为master node。每个从节点，都根据自己对master复制数据的offset来设置一个选举时间，offset越大代表从master节点上复制的数据越多，选举时间越靠前，优先进行选举。当选举开始时，所有的master node给要进行选举的slave node进行投票，如果大部分都投票给了某个节点，那么选择通过，这个从节点或切换成master。
+
