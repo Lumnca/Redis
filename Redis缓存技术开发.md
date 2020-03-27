@@ -228,3 +228,4 @@ gossip协议包含多种消息，包括ping，pong，meet，fail，等等。
 
 对宕机的master node，redis cluster会从其所有的slave node中，选择一个切换成master node。它首先会检查每个slave node和master node断开连接的时间，如果超过了cluster-node-timeout * cluster-slave-validity-factor，那么这个slave node就没有资格成为master node。每个从节点，都根据自己对master复制数据的offset来设置一个选举时间，offset越大代表从master节点上复制的数据越多，选举时间越靠前，优先进行选举。当选举开始时，所有的master node给要进行选举的slave node进行投票，如果大部分都投票给了某个节点，那么选择通过，这个从节点或切换成master。
 
+
