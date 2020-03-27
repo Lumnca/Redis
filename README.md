@@ -9,5 +9,7 @@
 
 :triangular_flag_on_post:[事务与脚本](https://github.com/Lumnca/Redis/blob/master/%E4%BA%8B%E5%8A%A1%E4%B8%8E%E8%84%9A%E6%9C%AC.md)
 
+:triangular_flag_on_post:[Redis集群](https://github.com/Lumnca/Redis/blob/master/Redis%E7%BC%93%E5%AD%98%E6%8A%80%E6%9C%AF%E5%BC%80%E5%8F%91.md)
+
 :triangular_flag_on_post:[Redis缓存](https://github.com/Lumnca/Redis/blob/master/Redis%E7%BC%93%E5%AD%98%E6%8A%80%E6%9C%AF%E5%BC%80%E5%8F%91.md)
 
