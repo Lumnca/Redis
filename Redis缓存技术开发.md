@@ -238,7 +238,116 @@ gossip协议包含多种消息，包括ping，pong，meet，fail，等等。
 
 下面呢我们简单列举一下这个过程和解决方案：
 
+如下是一个简单的缓存功能服务类：
 
 
+```java
+@Service
+@CacheConfig(cacheNames = "c1",cacheManager = "redisCacheManager")
+    public class BookServer {
 
+    @Autowired
+    BookDao bookDao; 
+    
+    //获取缓存，如果值不存在则写入缓存
+    @Cacheable(value = "c1")
+    public String getBookById(Integer id){
+        System.out.println("==================GetBookByID("+id+")==================");
+        return JSON.toJSONString(bookDao.getOne(id));
+    }
+}
+```
 
+添加控制器，以供访问：
+
+```java
+    @Autowired
+    BookServer bookServer;
+    @GetMapping("getBook")
+    public String getBookId(String id) {
+        return bookServer.getBookById(Integer.parseInt(id));
+    }
+```
+
+为了能够直观看到结果，我们可以定义一个切面：
+
+```java
+@Component
+@Aspect
+public class RedisAspect {
+    @Pointcut("execution(* app.redis.*.*(..))")
+    public void aop1(){
+
+    }
+    @Before(value = "aop1()")
+    public void before(JoinPoint jp){
+        System.out.println(jp.getSignature().getName()+"方法开始执行！参数为:"+ JSON.toJSONString(jp.getArgs()));
+    }
+    @After(value = "aop1()")
+    public void after(JoinPoint jp){
+        System.out.println(jp.getSignature().getName()+"方法执行结束！");
+    }
+
+}
+```
+
+运行spring boot我这里绑定的端口是8081：`http://127.0.0.1:8081/getBook?id=2` （也可以使用postman）
+
+多次访问这个url达到多次访问可以看到控制台输出：
+
+![](https://github.com/Lumnca/Redis/blob/master/img/a18.png)
+
+可见我们一共访问了两次接口，但是只有第一次执行了数据库操作。后面的没有执行数据库操作。
+
+接下来模拟集群redis服务不可用的情况：
+
+单个从节点挂掉,要在项目运行下关闭节点，否在关掉节点再启动项目会报错！
+
+![](https://github.com/Lumnca/Redis/blob/master/img/a19.png)
+
+然后继续访问接口发现服务可用！说明单个从节点不会影响服务。挂掉主节点：
+
+首先查看一下现在的节点情况：
+
+![](https://github.com/Lumnca/Redis/blob/master/img/a20.png)
+
+可见是如下的关系：
+
+```
+主节点 ： 8002 ， 8003 8004
+主节点对应的从节点  8006 -> 8003 , 8005 -> 8002 , 8001 -> 8004
+```
+现在我们关闭 8002 主节点进程：
+
+![](https://github.com/Lumnca/Redis/blob/master/img/a21.png)
+
+然后再次访问刚才的url，发现服务报错
+
+![](https://github.com/Lumnca/Redis/blob/master/img/a22.png)
+
+这是因为其中一个主节点断开而导致的连接超时被自动断开所导致原因。但是前面不是说过从节点可以代替主节点工作吗？是的，这当然会，但是这需要一段时间来让redis集群中节点完成判断其中有主节点断开了，当半数的节点都ping不到这个节点时，就会实施从节点替换主节点。好了，等过一段现在我们再来看下节点情况：
+
+![](https://github.com/Lumnca/Redis/blob/master/img/a23.png)
+
+如上可见节点2已经无法工作了，而他对应的8005节点成了新的主节点！。再次运行服务，发现服务又可用了！
+
+我们再把8002端口服务开启，发现它不再是主节点了，而是8005的从节点！
+
+![](https://github.com/Lumnca/Redis/blob/master/img/a24.png)
+
+或许你有个疑问。那就是在从节点代替主节点这段时间里面访问的人岂不是会得不到想要信息，是的。所以我们这里要在这段时间里面处理用户的请求：
+
+```java
+ @GetMapping("getBook")
+    public String getBookById(String id) {
+        String book;
+        try {
+             book = bookServer.getBookById(Integer.parseInt(id));
+        }
+        catch (Exception e){
+           //直接从数据库获取
+           ....
+        }
+        return book;
+    }
+ ```
