@@ -351,3 +351,120 @@ public class RedisAspect {
         return book;
     }
  ```
+
+
+所以问题就从这里来了，本身检查连接超时就会花费一些时间，加上再从数据库获取数据，这个过程会需要一定的时间。如果这段时间涌入了许多并发访问，只要访问量够大，就会导致mysql服务崩溃。所以这样做会有问题。那有什么解决方案呢？
+
+**本地缓存**
+
+可以使用Ehcache 本地缓存来代替redis缓存不可用的时候：
+
+配置本地缓存前参考前面的配置redis缓存的文章，这里不做演示。
+
+添加本地缓存：
+
+```java
+@Service
+@CacheConfig(cacheNames = "book_cache",cacheManager = "eCacheCacheManager")
+public class BookServer2 {
+    @Autowired
+    BookDao bookDao;
+    @Cacheable(value = "book_cache")
+    public String getBookById(Integer id){
+        System.out.println("=============从本地缓存写入数据===============");
+        return JSON.toJSONString( bookDao.getOne(id));
+    }
+}
+```
+
+Redis缓存：
+
+```java
+@Service
+@CacheConfig(cacheNames = "c1",cacheManager = "redisCacheManager")
+public class BookServer {
+    @Autowired
+    BookDao bookDao;
+    @Cacheable(value = "c1")
+    public String getBookById(Integer id){
+        System.out.println("==================从redis缓存写入数据==================");
+        return JSON.toJSONString(bookDao.getOne(id));
+    }
+}
+
+```
+
+修改控制器接口：
+
+```java
+    @GetMapping("getBook")
+    public String getBookById(String id) {
+        String book;
+        try {
+             //redis获取
+             book = bookServer.getBookById(Integer.parseInt(id));
+        }
+        catch (Exception e){
+            //本地获取
+            book = bookServer2.getBookById(Integer.parseInt(id));
+        }
+        return book;
+    }
+```
+
+运行程序，再第一次访问后关闭一个主节点。再次访问：
+
+
+![](https://github.com/Lumnca/Redis/blob/master/img/a26.png)
+
+可见在这个期间使用的是本地缓存。`使用本地缓存作为二级缓存`是一个比较好的选择，即使redis缓存服务全部崩溃，本地缓存照样可以继续维持缓存服务。
+
+还一种方式是使用`限流降级组件hystrix`。
+
+**hystrix**
+
+Hystix是由Netlix开源的一个延迟和容错库，用于隔离访问远程系统、服务或者第三方库，防止级联失败，从而提升系统的可用性与容错性。Hysix主要通过以下几点实现 延迟和容错。
+
+* 包裹请求：使用HystrixCommand（或HystrixObservableCommand）包裹对依赖的调用逻辑，每个命令在独立线程中执行。这使用到了设计模式中的“命令模式”。
+
+* 跳闸机制：当某服务的错误率超过一定阈值时，Hystrix可以自动或者手动跳闸，停止请求该服务一段时间。
+
+* 资源隔离：Hystrix为每个依赖都维护了一个小型的线程池（或者信号量）。如果该线程池已满，发往该依赖的请求就被立即拒绝，而不是排队等候，从而加速失败判定。
+
+* 监控：Hystrix可以近乎实时地监控运行指标和配置的变化，例如成功、失败、超时、以及被拒绝的请求等。
+
+* 回退机制：当请求失败、超时、被拒绝，或当断路器打开时，执行回退逻辑。回退逻辑可由开发人员自行提供，例如返回一个缺省值。
+
+* 自我修复：断路器打开一段时间后，会自动进入“半开”状态。
+
+有关hystrix组件使用可参考这篇文章[使用Hystrix实现容错处理](https://github.com/Lumnca/Spring-Cloud/blob/master/%E4%BD%BF%E7%94%A8Hystrix%E5%AE%9E%E7%8E%B0%E5%BE%AE%E6%9C%8D%E5%8A%A1%E7%9A%84%E5%AE%B9%E9%94%99%E5%A4%84%E7%90%86.md)
+
+下面我们来简单的使用Hystrix，在前面的例子中我们说过当一个主节点断掉后，我们再次尝试去访问时会有一个连接超时的等待时间，一般在5s以上。如果不做处理，有些用户可能以为服务无响应了，这时我们可以采用Hystrix设置响应超时时间执行回退：
+
+```java
+    @GetMapping("getBook")
+    @HystrixCommand(defaultFallback = "fallback",commandProperties = {
+            @HystrixProperty(name="execution.isolation.thread.timeoutInMilliseconds", value = "5000"),   //最大响应时间5000ms
+    })
+    public String getBookById(String id) {
+        String book;
+        try {
+             book = bookServer.getBookById(Integer.parseInt(id));
+        }
+        catch (Exception e){
+            book = bookServer2.getBookById(Integer.parseInt(id));
+        }
+        return book;
+    }
+    //执行的回退方法
+    public String fallback(){
+        return "请稍后再访问！";
+    }
+```
+
+![](https://github.com/Lumnca/Redis/blob/master/img/a27.png)
+
+当然我们最好不样这样做，这是由于不止连接超时会导致访问时间延长，像网络信号不好，访问量多，都会到导致响应时间延迟。所以最好不要这样做。
+
+
+
