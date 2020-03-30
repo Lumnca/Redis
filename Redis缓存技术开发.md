@@ -331,9 +331,11 @@ public class RedisAspect {
 
 如上可见节点2已经无法工作了，而他对应的8005节点成了新的主节点！。再次运行服务，发现服务又可用了！
 
+![](https://github.com/Lumnca/Redis/blob/master/img/a24.png)
+
 我们再把8002端口服务开启，发现它不再是主节点了，而是8005的从节点！
 
-![](https://github.com/Lumnca/Redis/blob/master/img/a24.png)
+![](https://github.com/Lumnca/Redis/blob/master/img/a25.png)
 
 或许你有个疑问。那就是在从节点代替主节点这段时间里面访问的人岂不是会得不到想要信息，是的。所以我们这里要在这段时间里面处理用户的请求：
 
