@@ -339,6 +339,8 @@ public class RedisAspect {
 
 或许你有个疑问。那就是在从节点代替主节点这段时间里面访问的人岂不是会得不到想要信息，是的。所以我们这里要在这段时间里面处理用户的请求：
 
+捕捉异常：
+
 ```java
  @GetMapping("getBook")
     public String getBookById(String id) {
@@ -346,6 +348,7 @@ public class RedisAspect {
         try {
              book = bookServer.getBookById(Integer.parseInt(id));
         }
+        //也可以直接捕捉对应的错误
         catch (Exception e){
            //直接从数据库获取
            ....
@@ -466,7 +469,141 @@ Hystix是由Netlix开源的一个延迟和容错库，用于隔离访问远程�
 
 ![](https://github.com/Lumnca/Redis/blob/master/img/a27.png)
 
-当然我们最好不样这样做，这是由于不止连接超时会导致访问时间延长，像网络信号不好，访问量多，都会到导致响应时间延迟。所以最好不要这样做。
+当然我们最好不样这样做，这是由于不止连接超时会导致访问时间延长，像网络信号不好，访问量多，都会到导致响应时间延迟。有回退机制我们甚至可以不用捕捉异常：
+
+```java
+    @GetMapping("getBook/{id}")
+    @HystrixCommand(fallbackMethod = "fallback")
+    public String getBookById(@PathVariable("id")Integer id) {
+        return bookServer.getBookById(id);
+    }
+    //回退方法：
+    public String fallback(@PathVariable("id")Integer id){
+        System.out.println("出现了异常！");
+        return bookServer2.getBookById(id);
+    }
+```
+
+
+断开其中一个主节点，我们使用JMeter模拟多个并发：
+
+![](https://github.com/Lumnca/Redis/blob/master/img/a28.png)
+
+可见所有的请求都是成功了返回的数据，而控制台中也捕捉了这些问题，并交给了本地缓存去做处理：
+
+![](https://github.com/Lumnca/Redis/blob/master/img/a29.png)
+
+所以我们可以不用像前面那样的去捕捉异常然后处理。当然这里并不是限流，如果想限制某个时间点并发量，进而保护服务进程不被打挂，可以像如下设置：
+
+```java
+@GetMapping("getBook/{id}")
+    @HystrixCommand(fallbackMethod = "fallback",commandProperties = {
+            @HystrixProperty(name="execution.isolation.strategy", value = "SEMAPHORE"),
+            //同时的并发量不能超过10个
+            @HystrixProperty(name="fallback.isolation.semaphore.maxConcurrentRequests", value = "10")
+    })
+    public String getBookById(@PathVariable("id")Integer id) {
+        return bookServer.getBookById(id);
+    }
+    public String fallback(@PathVariable("id")Integer id){
+        System.out.println("出现了异常！");
+        return bookServer2.getBookById(id);
+    }
+```
+
+
+然后使用Jmeter同时请求50个并发：
+
+
+![](https://github.com/Lumnca/Redis/blob/master/img/a30.png)
+
+然后我们观察控制台输出：
+
+![](https://github.com/Lumnca/Redis/blob/master/img/a31.png
+
+
+到这里为止我们一直说的都是redis缓存服务不可用的情况下，但是在服务可用的情况下，依然会存在缓存雪崩的情况。例如在缓存中不存在的值同一时间接收到了大量访问，由于程序是异步执行的，当然不可能所有请求都能命中缓存，如果一大部分命中数据库而导致数据返回慢，当压力过大时会导致存储层直接挂掉，整个系统都受影响。所以我们还要解决这个问题。
+
+首先看下在缓存中没有该数据的情况下：
+
+```java
+    @GetMapping("getBook/{id}")
+    public String getBookById(@PathVariable("id")Integer id) {
+        return bookServer.getBookById(id);
+    }
+```
+
+同时模拟20个并发：
+
+![](https://github.com/Lumnca/Redis/blob/master/img/a32.png)
+
+查看控制台输出：
+
+![](https://github.com/Lumnca/Redis/blob/master/img/a33.png)
+
+我们可以看到在缓存没有数据值得时候20个并发访问中大部分的访问都是直接命中数据库的。而我们期望的是他们之间应该只有1个是命中了数据库的，然后写入缓存，剩下的都应该直接从缓存中取数据。那该怎么做呢？
+
+**加锁控制**
+
+ 我们可以在对数据库查询的地方进行加锁控制，让该资源只允许一个使用，不要让所有请求都过去，这样可以保证存储服务不挂掉。下面列出最简单方式：
+ 
+ 
+ 
+ ```java
+    @GetMapping("getBook/{id}")
+    public String getBookById(@PathVariable("id")Integer id) {
+        String book;
+        if(stringRedisTemplate.hasKey("sang:"+id)){
+            System.out.println("**********从缓存中读取数据**********");
+            return stringRedisTemplate.opsForValue().get("sang:"+id);
+        }
+        synchronized (this){
+            book = bookServer.getBookById(id);
+        }
+        return book;
+    }
+ ```
+ 
+ 
+ 同样添加20个并发，观察控制台输出：
+ 
+ ![](https://github.com/Lumnca/Redis/blob/master/img/a35.png)
+ 
+ 可见只有一个进入了数据库访问。其余的都是从缓存中获取值。
+
+
+上面是最简单的方式，直接用代码同步块来加锁， 当然我们也可以用 Lock 来加锁，加锁的本质还是控制并发量，不要让所有请求瞬时压到数据库上面去，加了锁就意味着性能要丢失一部分。其实我们可以用信号量来做，就是限制并发而已，信号量可以让多个线程同时操作，只要在数据库能够抗住的范围内即可。
+
+
+加锁除了用 Jvm 提供的锁，我们还可以用分布式锁来解决缓存雪崩的问题，分布式锁常用的有两种，`基于 Redis 和 Zookeeper 的实现`。当你从网上搜分布式锁的时候，出来一大堆实现的文章，不建议自己去实现这种功能，用开源的会好点，在这里介绍一个基于 Redis 实现的分布式锁。
+
+Redisson 是一个在 Redis 的基础上实现的 Java 驻内存数据网格（In-Memory Data Grid）。
+
+Redisson 不仅提供了一系列的分布式的 Java 常用对象，还提供了许多分布式服务（包括 BitSet、Set、Multimap、SortedSet、Map、List、Queue、BlockingQueue、Deque、BlockingDeque、Semaphore、Lock、AtomicLong、CountDownLatch、Publish/Subscribe、Bloom filter、Remote service、Spring cache、Executor service、Live Object service、Scheduler service）。
+
+Redisson 提供了使用 Redis 最简单和便捷的方法。Redisson 的宗旨是促进使用者对 Redis 的关注分离（Separation of Concern），从而让使用者能够将精力更集中地放在处理业务逻辑上。
+
+Redisson 跟 Jedis 差不多，都是用来操作 Redis 的框架，Redisson 中提供了很多封装，有信号量、布隆过滤器等。分布式锁只是其中一个，感兴趣的可以自行深入研究。
+
+
+```java
+RLock lock = redisson.getLock("anyLock");
+// 最常见的使用方法 lock.lock();
+// 支持过期解锁功能
+// 10 秒钟以后自动解锁
+// 无须调用 unlock 方法手动解锁
+lock.lock(10, TimeUnit.SECONDS);
+// 尝试加锁, 最多等待 100 秒, 上锁以后 10 秒自动解锁
+boolean res = lock.tryLock(100, 10, TimeUnit.SECONDS);
+...
+lock.unlock();
+```
+
+当然了上面都是技术性的解决方案，最后呢还有设计方面的解决方案：
+
+前面所说当缓存值不存在时，而那个时间段刚好又有大量访问就有可能导致缓存雪崩！因而我们的缓存过期时间要设置好。尽量避开大规模失效。统一去规划有效期，让失效时间分布均匀即可。
+
+对于一些热门数据的持续读取，这种缓存数据也可以采取定时更新的方式来刷新缓存，避免自动失效。当然特殊情况下也可以设置永久生效。
 
 
 
