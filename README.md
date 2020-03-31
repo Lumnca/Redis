@@ -13,3 +13,7 @@
 
 :triangular_flag_on_post:[Redis缓存](https://github.com/Lumnca/Redis/blob/master/Redis%E7%BC%93%E5%AD%98%E6%8A%80%E6%9C%AF%E5%BC%80%E5%8F%91.md)
 
+感谢以下人员参与编辑文档：
+
+周士林（Redis的基础使用），周海鉴（Redis集群），刘闽川（缓存技术），袁浪（前端程序编写），张凌风（后端程序编写）
+
