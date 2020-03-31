@@ -514,12 +514,11 @@ Hystix是由Netlix开源的一个延迟和容错库，用于隔离访问远程�
 
 然后使用Jmeter同时请求50个并发：
 
-
 ![](https://github.com/Lumnca/Redis/blob/master/img/a30.png)
 
 然后我们观察控制台输出：
 
-![](https://github.com/Lumnca/Redis/blob/master/img/a31.png
+![](https://github.com/Lumnca/Redis/blob/master/img/a31.png)
 
 
 到这里为止我们一直说的都是redis缓存服务不可用的情况下，但是在服务可用的情况下，依然会存在缓存雪崩的情况。例如在缓存中不存在的值同一时间接收到了大量访问，由于程序是异步执行的，当然不可能所有请求都能命中缓存，如果一大部分命中数据库而导致数据返回慢，当压力过大时会导致存储层直接挂掉，整个系统都受影响。所以我们还要解决这个问题。
@@ -574,6 +573,7 @@ Hystix是由Netlix开源的一个延迟和容错库，用于隔离访问远程�
 
 上面是最简单的方式，直接用代码同步块来加锁， 当然我们也可以用 Lock 来加锁，加锁的本质还是控制并发量，不要让所有请求瞬时压到数据库上面去，加了锁就意味着性能要丢失一部分。其实我们可以用信号量来做，就是限制并发而已，信号量可以让多个线程同时操作，只要在数据库能够抗住的范围内即可。
 
+**分布式锁**
 
 加锁除了用 Jvm 提供的锁，我们还可以用分布式锁来解决缓存雪崩的问题，分布式锁常用的有两种，`基于 Redis 和 Zookeeper 的实现`。当你从网上搜分布式锁的时候，出来一大堆实现的文章，不建议自己去实现这种功能，用开源的会好点，在这里介绍一个基于 Redis 实现的分布式锁。
 
@@ -605,5 +605,100 @@ lock.unlock();
 
 对于一些热门数据的持续读取，这种缓存数据也可以采取定时更新的方式来刷新缓存，避免自动失效。当然特殊情况下也可以设置永久生效。
 
+**小结**
+
+综合上面所有情况，总结出可以以下解决方案：
+
+* 1）缓存存储高可用。比如 Redis 集群，这样就能防止某台 Redis 挂掉之后所有缓存丢失导致的雪崩问题。
+
+* 2）缓存失效时间要设计好。不同的数据有不同的有效期，尽量保证不要在同一时间失效，统一去规划有效期，让失效时间分布均匀即可。
+
+* 3）对于一些热门数据的持续读取，这种缓存数据也可以采取定时更新的方式来刷新缓存，避免自动失效。
+
+* 4）服务限流和接口限流。如果服务和接口都有限流机制，就算缓存全部失效了，但是请求的总量是有限制的，可以在承受范围之内，这样短时间内系统响应慢点，但不至于挂掉，影响整个系统。
+
+* 5）从数据库获取缓存需要的数据时加锁控制，本地锁或者分布式锁都可以。当所有请求都不能命中缓存，这就是我们之前讲的缓存穿透，这时候要去数据库中查询，如果同时并发的量大，也是会导致雪崩的发生，我们可以在对数据库查询的地方进行加锁控制，不要让所有请求都过去，这样可以保证存储服务不挂掉。
+
+***
+
+**:four:缓存与数据库双写一致性解决方案**
+
+（1）`Cache Aside Pattern原则`
+
+读的时候，先读缓存，缓存没有的话，那么就读数据库，然后取出数据后放入缓存，同时返回响应。更新的时候，先删除缓存，然后再更新数据库。
+
+（2）`解决方案`
+
+方案一：队列串行化，当更新数据的时候，根据数据的唯一标识可以经过hash分发后搞到一个jvm内部队列，读取数据的时候，如果发现数据不在缓存中，那么将重新读取+更新缓存的操作也根据唯一标识发送到同一个jvm内部的队列，可以判断一下队列中是否已经有查询更新缓存的操作，如果有直接把更新缓存操作取消掉，然后每个队列单线程消费。但是这种方案有几个问题需要根据业务或者测试去完善优化，首先多实例服务怎么把请求根据数据的唯一标识路由到同一个实例；其次，读请求长阻塞、请求吞吐量、热点问题这些可能需要大量的压力测试和业务处理。
+
+方案二：分布式锁，当读数据的时候如果缓存miss，可以去尝试根据唯一标识（例如userId）获取锁，如果获取不到直接从数据库查询数据返回即可，不更新缓存，反之则更新缓存，之后释放锁。当写请求过来时要保证获取到公平锁或者获取锁失败可以直接拒绝（公平性获取锁可以通过zookeeper的临时顺序节点来实现），在更新完数据库可以同时更新缓存（也可以不更新）。
+
+
+如果你是使用spring boot作为项目的框架的话，那么这个解决问题只需要一个注解即可：
+
+
+```java
+   //根据Id更新
+    @CachePut(key = "#book.id")
+    public String updateBookById(Book book){
+        bookDao.save(book);
+        System.out.println("==================updateBook=====================");
+        return JSON.toJSONString(book);
+    }
+    //根据Id删除缓存
+    @CacheEvict(key = "#id")
+    public String deleteBookById(Integer id){
+        System.out.println("==================deleteBook=====================");
+        return "delete";
+    }
+```
+
+控制器修改：
+
+```java
+    @GetMapping("getBook/{id}")
+    public String getBookById(@PathVariable("id")Integer id) {
+        String book;
+        if(stringRedisTemplate.hasKey("sang:"+id)){
+            return bookServer.getBookById(id);
+        }
+        synchronized (this){
+            book = bookServer.getBookById(id);
+        }
+        return book;
+    }
+    @PostMapping("updatebook")
+    public String updateBookById(@RequestBody Book book){
+        return bookServer.updateBookById(book);
+    }
+    @DeleteMapping("deleteBookById/{id}")
+    public String deleteBookBuId(@PathVariable("id") Integer id){
+        return bookServer.deleteBookById(id);
+    }
+```
+
+接下来使用postman做接口测试：
+
+首先访问id为2的数据:
+
+ ![](https://github.com/Lumnca/Redis/blob/master/img/a36.png)
+ 
+ 修改名称和价格：
+ 
+![](https://github.com/Lumnca/Redis/blob/master/img/a37.png)
+  
+再次查询：
+  
+![](https://github.com/Lumnca/Redis/blob/master/img/a38.png)
+
+我们发现缓存数据是刷新了的，最后删除缓存数据：
+
+![](https://github.com/Lumnca/Redis/blob/master/img/a39.png)
+
+在redis缓存中查询该数据：
+
+![](https://github.com/Lumnca/Redis/blob/master/img/a40.png)
+
+可见并没有该数据。
 
 
