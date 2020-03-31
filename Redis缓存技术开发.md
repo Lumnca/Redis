@@ -702,3 +702,59 @@ lock.unlock();
 可见并没有该数据。
 
 
+**:five:热点数据**
+
+由于一个key是热点key必然会有大量的并发访问量，在这个key过期时，这是会有大量的线程去构建缓存，而构建缓存可能会很复杂，这样就导致了后端负载过大，这可能会导致系统崩溃。解决方式可以考虑以下几种之一，首先可以使用互斥锁，可以只让一个线程去构建，其他线程等待即可，这个已经在上面的加锁机制已经介绍过了；其次可以考虑设置redis key的过期时间。方案总结如下：
+
+1.快过期的时候重置时间：
+
+```java
+    @GetMapping("getBook/{id}")
+    public String getBookById(@PathVariable("id")Integer id) {
+        if(stringRedisTemplate.hasKey("键值")){
+          //当有效时间小于一小时
+          if(stringRedisTemplate.getExpire("键值",TimeUnit.SECONDS)<3600){
+              //重置为一天
+              stringRedisTemplate.expire("",86400,TimeUnit.SECONDS);
+          }
+        }
+        return  bookServer.getBookById(id);
+    }
+```
+
+这样设置其实只有在最后期限间有人访问才能重置时间。如果这个期限设置的得当的话，可以一定程度上避免失效。
+
+2.按照访问频率依次增加有效时间：
+
+```java
+    @GetMapping("getBook/{id}")
+    public String getBookById(@PathVariable("id")Integer id) {
+ 
+        if(stringRedisTemplate.hasKey("键值")){
+            Long time = stringRedisTemplate.getExpire("键值"+id,TimeUnit.SECONDS);
+            //每访问依次增加1个小时的有效期
+            stringRedisTemplate.expire("",time+3600,TimeUnit.SECONDS);
+        }
+        return bookServer.getBookById(id);
+    }
+```
+
+这样设置的话可以让热点数据时间在一段时间内达到不过期的效果。
+
+3.设置永远不过期。
+
+```java
+   @GetMapping("getBook/{id}")
+    public String getBookById(@PathVariable("id")Integer id) {
+        //-1 永久
+        stringRedisTemplate.expire("",-1,TimeUnit.SECONDS);
+        
+        return bookServer.getBookById(id);
+    }
+```
+
+
+虽然这个方法是万无一失的。但是过多的永久数据会导致缓存空间不够用。因为它们会一直占有那个缓存空间，而且对性能也不是很好。所以不能为所有的
+值做永久缓存，只能是热点数据。但是对于未来的热点数据是谁都无法判断的。这就需要我们人为的去寻找热点数据。
+
+
