@@ -599,6 +599,29 @@ boolean res = lock.tryLock(100, 10, TimeUnit.SECONDS);
 lock.unlock();
 ```
 
+可以如下设计：
+
+```java
+      try {
+           //尝试去获取锁
+            if(lock.tryLock(10,10,TimeUnit.SECONDS)){
+            
+                //执行数据可操作
+                ......
+               
+                //释放锁
+                lock.unlock();
+            }
+            else{
+                //等待或者其他处理
+                ......
+            }
+        }
+        catch (Exception e){
+
+        }
+```
+
 当然了上面都是技术性的解决方案，最后呢还有设计方面的解决方案：
 
 前面所说当缓存值不存在时，而那个时间段刚好又有大量访问就有可能导致缓存雪崩！因而我们的缓存过期时间要设置好。尽量避开大规模失效。统一去规划有效期，让失效时间分布均匀即可。
@@ -715,7 +738,7 @@ lock.unlock();
           //当有效时间小于一小时
           if(stringRedisTemplate.getExpire("键值",TimeUnit.SECONDS)<3600){
               //重置为一天
-              stringRedisTemplate.expire("",86400,TimeUnit.SECONDS);
+              stringRedisTemplate.expire("键值",86400,TimeUnit.SECONDS);
           }
         }
         return  bookServer.getBookById(id);
@@ -733,7 +756,7 @@ lock.unlock();
         if(stringRedisTemplate.hasKey("键值")){
             Long time = stringRedisTemplate.getExpire("键值"+id,TimeUnit.SECONDS);
             //每访问依次增加1个小时的有效期
-            stringRedisTemplate.expire("",time+3600,TimeUnit.SECONDS);
+            stringRedisTemplate.expire("键值",time+3600,TimeUnit.SECONDS);
         }
         return bookServer.getBookById(id);
     }
@@ -747,7 +770,7 @@ lock.unlock();
    @GetMapping("getBook/{id}")
     public String getBookById(@PathVariable("id")Integer id) {
         //-1 永久
-        stringRedisTemplate.expire("",-1,TimeUnit.SECONDS);
+        stringRedisTemplate.expire("键值",-1,TimeUnit.SECONDS);
         
         return bookServer.getBookById(id);
     }
@@ -755,6 +778,9 @@ lock.unlock();
 
 
 虽然这个方法是万无一失的。但是过多的永久数据会导致缓存空间不够用。因为它们会一直占有那个缓存空间，而且对性能也不是很好。所以不能为所有的
-值做永久缓存，只能是热点数据。但是对于未来的热点数据是谁都无法判断的。这就需要我们人为的去寻找热点数据。
+值做永久缓存，只能是热点数据。但是对于未来的热点数据是谁都无法判断的。这就需要我们人为的去寻找热点数据。设立数据监控，数据浏览统计，提前调查等方式
+来找到可能的热点数据。
+
+
 
 
