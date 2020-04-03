@@ -342,16 +342,16 @@ public class RedisAspect {
 捕捉异常：
 
 ```java
- @GetMapping("getBook")
-    public String getBookById(String id) {
+    @GetMapping("getBook/{id}")
+    public String getBookById(@PathVariable("id")  Integer id) {
         String book;
         try {
-             book = bookServer.getBookById(Integer.parseInt(id));
+            book = bookServer.getBookById(id);
         }
         //也可以直接捕捉对应的错误
         catch (Exception e){
-           //直接从数据库获取
-           ....
+            //直接从数据库获取
+            ......
         }
         return book;
     }
@@ -403,15 +403,15 @@ public class BookServer {
 
 ```java
     @GetMapping("getBook")
-    public String getBookById(String id) {
+    public String getBook2ById(@PathVariable("id")  Integer id) {
         String book;
         try {
-             //redis获取
-             book = bookServer.getBookById(Integer.parseInt(id));
+            //redis获取
+            book = bookServer.getBookById(id);
         }
         catch (Exception e){
             //本地获取
-            book = bookServer2.getBookById(Integer.parseInt(id));
+            book = bookServer2.getBookById(id);
         }
         return book;
     }
