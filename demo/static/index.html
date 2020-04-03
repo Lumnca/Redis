@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Redis测试</title>
+    <script src="https://unpkg.com/vue/dist/vue.js"></script>
+    <script src="https://unpkg.com/element-ui@2.13.0/lib/index.js"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <style>
+        @import url("https://unpkg.com/element-ui@2.13.0/lib/theme-chalk/index.css");
+
+        .el-header,
+        .el-footer {
+            background-color: #B3C0D1;
+            color: #333;
+            text-align: center;
+            line-height: 30px;
+        }
+
+        .el-aside {
+            background-color: #D3DCE6;
+            color: #333;
+            text-align: center;
+            line-height: 200px;
+        }
+
+        .el-main {
+            background-color: #E9EEF3;
+            color: #333;
+        }
+
+        body>.el-container {
+            margin-bottom: 40px;
+        }
+
+        .el-container:nth-child(5) .el-aside,
+        .el-container:nth-child(6) .el-aside {
+            line-height: 260px;
+        }
+
+        .el-container:nth-child(7) .el-aside {
+            line-height: 320px;
+        }
+    </style>
+</head>
+
+<body>
+<div id="app">
+    <el-container>
+        <el-header>
+            <h2>Redis 测试版本V2.0</h2>
+        </el-header>
+        <el-container>
+
+            <el-container>
+                <el-aside width="200px"></el-aside>
+                <el-main>
+                    <el-tabs type="border-card">
+                        <el-tab-pane>
+                            <span slot="label"><i class="el-icon-date"></i> 节点状态</span>
+                            <div>
+                                <el-table :data="redisServer" style="width: 100%">
+                                    <el-table-column prop="ip" label="IP" width="180">
+                                    </el-table-column>
+                                    <el-table-column prop="port" label="端口" width="180">
+                                    </el-table-column>
+                                    <el-table-column label="状态">
+                                        <template slot-scope="scope">
+                                            <el-tag key="成功" type="success" effect="dark" v-if="scope.row.state">
+                                                运行中
+                                            </el-tag>
+                                            <el-tag key="失败" type="danger" effect="dark" v-else>
+                                                无连接
+                                            </el-tag>
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column label="描述" width="600">
+                                        <template slot-scope="scope">
+                                                <span v-if="load.retest=='el-icon-loading'">加载中<i
+                                                        class="el-icon-loading"></i></span>
+                                            <span v-else>{{scope.row.msg}}</span>
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column fixed="right" label="操作" width="160">
+                                        <template slot-scope="scope">
+                                            <el-button @click="reconnect(scope.row,scope.$index)" type="primary">
+                                                <i :class="load.retest"></i> 重新连接
+                                            </el-button>
+
+                                        </template>
+                                    </el-table-column>
+                                </el-table>
+                            </div>
+                        </el-tab-pane>
+                        <el-tab-pane label="查看数据">
+                            <el-table :data="books" style="width: 100%">
+                                <el-table-column prop="id" label="ID" width="180" sortable>
+                                </el-table-column>
+                                <el-table-column prop="name" label="名称" width="180" sortable>
+                                </el-table-column>
+                                <el-table-column prop="author" label="作者" width="180" sortable>
+                                </el-table-column>
+                                <el-table-column prop="info" label="说明" width="180">
+                                </el-table-column>
+                                <el-table-column prop="press" label="出版社" sortable>
+                                </el-table-column>
+                                <el-table-column prop="price" label="价格/元" sortable>
+                                </el-table-column>
+                                <el-table-column fixed="right" label="操作" width="360">
+                                    <template slot-scope="scope">
+                                        <el-button @click="editBook(scope.row)" type="primary">
+                                            <i class="el-icon-edit"></i> 编辑
+                                        </el-button>
+                                        <el-button @click="delBook(scope.row)" type="danger">
+                                            <i class="el-icon-edit"></i> 删除
+                                        </el-button>
+                                    </template>
+                                </el-table-column>
+                            </el-table>
+                            <br><br>
+
+                            <el-button @click="addBook()" type="primary">
+                                <i class="el-icon-circle-plus-outline"></i> 添加
+                            </el-button>
+
+                            <div class="block" style="font-size:18px;text-align:center">
+                                <el-pagination @size-change="handleSizeChange" @current-change="handleCurrentChange"
+                                               :current-page.sync="currentPage3" :page-size="100"
+                                               layout="prev, pager, next, jumper" :total="18000">
+                                </el-pagination>
+                            </div>
+
+                            <el-dialog title="编辑" :visible.sync="dialogVisible" width="30%">
+                                <el-form :model="book" label-width="80px">
+                                    <el-form-item label="名称">
+                                        <el-input v-model="book.name"></el-input>
+                                    </el-form-item>
+
+                                    <el-form-item label="作者">
+                                        <el-input v-model="book.author"></el-input>
+                                    </el-form-item>
+
+                                    <el-form-item label="说明">
+                                        <el-input v-model="book.info"></el-input>
+                                    </el-form-item>
+
+                                    <el-form-item label="出版社">
+                                        <el-input v-model="book.press"></el-input>
+                                    </el-form-item>
+
+                                    <el-form-item label="价格">
+                                        <el-input-number v-model="book.price" :precision="1" :step="0.1"
+                                                         :max="1000"></el-input-number>
+                                    </el-form-item>
+                                </el-form>
+                                <span slot="footer" class="dialog-footer">
+                                        <el-button @click="dialogVisible = false">取 消</el-button>
+                                        <el-button type="primary" @click="editBookOk(book)">确 定</el-button>
+                                    </span>
+                            </el-dialog>
+                        </el-tab-pane>
+                        <el-tab-pane label="缓存管理">
+                            <el-form :inline="true" :model="cacheValue" class="demo-form-inline">
+                                <el-form-item label="Key值">
+                                    <el-input v-model="key" placeholder="Key"></el-input>
+                                </el-form-item>
+
+                                <el-form-item>
+                                    <el-button type="primary" @click="queryKey(key)">查询</el-button>
+                                </el-form-item>
+                            </el-form>
+                            <br>
+                            <div>
+                                Key : {{cacheValue.key}}
+                            </div>
+                            <div>
+                                Value : {{cacheValue.value}}
+                            </div>
+                            <div>
+                                TimeOut : {{cacheValue.timeout}} s &nbsp; &nbsp;
+                                <span v-if="cacheValue.timeout!=''&&cacheValue.timeout>0">
+                                        <el-input-number v-model="timeout" :min="1" :max="72500" label="描述文字">
+                                        </el-input-number>
+                                        <el-button type="danger" @click="setexpire(key,timeout)">重置过期时间</el-button>
+                                    </span>
+
+                            </div>
+                        </el-tab-pane>
+                        <el-tab-pane label="缓存测试">
+                            <el-form :inline="true" :model="queryBook" class="demo-form-inline">
+                                <el-form-item label="ID值">
+                                    <el-input v-model="queryBook.id" placeholder="ID值"></el-input>
+                                </el-form-item>
+                                <el-form-item>
+                                    <el-button type="primary" @click="getBookById(queryBook.id)">查询</el-button>
+                                </el-form-item>
+                            </el-form>
+
+                            <div>
+                                <h3>查询结果:</h3>
+                                <p>ID:{{getBookInfo.id}}</p>
+                                <p>名称:{{getBookInfo.name}}</p>
+                                <p>作者:{{getBookInfo.author}}</p>
+                                <p>信息:{{getBookInfo.info}}</p>
+                                <p>出版社:{{getBookInfo.press}}</p>
+                                <p>价格:{{getBookInfo.price}}</p>
+
+                                <p>查询类型:<span v-if="isUseCache == ''"><i class="el-icon-loading"></i></span> <span
+                                        v-else>{{isUseCache}}</span> </p>
+                            </div>
+                            <div>
+
+                            </div>
+                        </el-tab-pane>
+
+                        <el-tab-pane label="热点数据">
+                            <template>
+                                <el-table :data="hotData" style="width: 100%">
+                                    <el-table-column prop="id" label="ID" width="180">
+                                    </el-table-column>
+                                    <el-table-column prop="key" label="Key" width="180">
+                                    </el-table-column>
+                                    <el-table-column label="Hot">
+                                        <template slot-scope="scope">
+                                            <el-tag  v-if="scope.row.timeout/1500>1" type="danger">{{Math.ceil(scope.row.timeout/1500)}}</el-tag>
+                                            <el-tag v-else>{{Math.ceil(scope.row.timeout/1500)}}</el-tag>
+                                        </template>
+                                    </el-table-column>
+                                </el-table>
+                            </template>
+                        </el-tab-pane>
+
+
+                        <el-tab-pane label="数据库命中">
+                            数据库命中次数: {{sql}}
+                            <el-button type="primary" @click="res()">重置</el-button>
+                        </el-tab-pane>
+
+                    </el-tabs>
+                </el-main>
+            </el-container>
+        </el-container>
+    </el-container>
+</div>
+</body>
+<script>
+    var app = new Vue({
+        el: '#app',
+        data: {
+            redisServer: [
+                { ip: '47.106.254.86', port: 8001, state: false, msg: '' },
+                { ip: '47.106.254.86', port: 8002, state: false, msg: '' },
+                { ip: '47.106.254.86', port: 8003, state: false, msg: '' },
+                { ip: '47.106.254.86', port: 8004, state: false, msg: '' },
+                { ip: '47.106.254.86', port: 8005, state: false, msg: '' },
+                { ip: '47.106.254.86', port: 8006, state: false, msg: '' },
+            ],
+            load: {
+                retest: 'el-icon-refresh-right'
+            },
+            books: [],
+            book: {
+                id: -1,
+                name: '',
+                author: '',
+                press: '',
+                price: 0,
+                info: ''
+            },
+            dialogVisible: false,
+            isedit: true,
+            cacheValue: {
+                key: '',
+                value: '',
+                timeout: ''
+            },
+            queryBook: {
+                id: ''
+            },
+            getBookInfo: {
+                id: '',
+                name: '',
+                author: '',
+                press: '',
+                price: '',
+                info: ''
+            },
+            isUseCache: '',
+            key: '',
+            currentPage3: 1,
+            timeout: 500,
+            hotData: [],
+            sql: ''
+        },
+        methods: {
+
+            reconnect(redis, i) {
+                app.load.retest = 'el-icon-loading';
+                axios.get('http://127.0.0.1:8081/connect', {
+                    params: {
+                        host: redis.ip,
+                        post: redis.port
+                    }
+                })
+                    .then(function (response) {
+                        if (response.data.code == 200) {
+                            app.redisServer[i].state = true;
+                        }
+                        else {
+                            app.redisServer[i].state = false;
+                        }
+                        app.load.retest = 'el-icon-refresh-right';
+                        app.redisServer[i].msg = response.data.message;
+                        console.log(response);
+                    })
+                    .catch(function (error) {
+                        app.load.retest = 'el-icon-refresh-right';
+                        console.log(error);
+                    });
+            },
+            editBook(book) {
+                this.dialogVisible = true;
+                this.book = book;
+            },
+            editBookOk(book) {
+                if (this.isedit) {
+
+                    axios.put('http://127.0.0.1:8081/upBookData/',
+                        app.book).then(function (response) {
+
+                        app.$message({
+                            message: '数据修改成功!',
+                            type: 'success'
+                        });
+
+                    }).catch(function (error) {
+                        app.$message.error('操作失败！请重新尝试');
+                    });
+                }
+                else {
+                    axios.post('http://127.0.0.1:8081/books/',
+                        app.book).then(function (response) {
+
+                        app.$message({
+                            message: '数据添加成功!',
+                            type: 'success'
+                        });
+                        app.books.push(app.book);
+
+                    }).catch(function (error) {
+                        app.$message.error('操作失败！请重新尝试');
+                    });
+                }
+                this.dialogVisible = false;
+
+            },
+            addBook() {
+                this.dialogVisible = true;
+                this.isedit = false;
+                let id = parseInt(this.books[this.books.length - 1].id);
+                console.log(id);
+                this.book = {
+                    id: id + 1,
+                    name: '未命名',
+                    author: '无作者',
+                    press: '空',
+                    infi: '无说明',
+                    price: 0
+                }
+            },
+            delBook(data) {
+                let i = this.books.indexOf(data);
+                axios.delete('http://127.0.0.1:8081/books/' + data.id)
+                    .then(function (response) {
+                        app.$message({
+                            message: '数据删除成功!',
+                            type: 'success'
+                        });
+                        app.books.splice(i, 1);
+                    })
+                    .catch(function (error) {
+                        app.$message.error('操作失败！请重新尝试');
+                    });
+            },
+            writeCache() {
+
+            },
+            getBookById(id) {
+
+                this.isUseCache = '';
+
+                axios.get('http://127.0.0.1:8081/getBook', {
+                    params: {
+                        id: id
+                    }
+                })
+                    .then(function (response) {
+                        if (response.data == 'No Data') {
+                            app.getBookInfo = {
+                                id: '无',
+                                name: '无',
+                                author: '无',
+                                press: '无',
+                                infi: '无',
+                                price: 0
+                            }
+                        }
+                        else {
+                            app.getBookInfo = response.data;
+                        }
+                    })
+                    .catch(function (error) {
+                        console.log(error);
+                        app.$message.error('查询出错');
+                    });
+
+                setTimeout(() => {
+                    axios.get('http://127.0.0.1:8081/getCache')
+                        .then(function (response) {
+                            app.isUseCache = response.data;
+                        })
+                        .catch(function (error) {
+                        });
+            }, 2000)
+
+
+            },
+            queryKey(key) {
+                app.cacheValue = {
+                    key: key,
+                    value: '',
+                    timeout: ''
+                }
+                axios.get('http://127.0.0.1:8081/getCacheValue', {
+                    params: {
+                        key: key
+                    }
+                })
+                    .then(function (response) {
+                        if (response.data.code == 700) {
+                            app.cacheValue.key = key;
+                            app.cacheValue.value = '无结果值!';
+                        }
+                        else {
+                            app.cacheValue = JSON.parse(response.data.message);
+                            timeout();
+                        }
+
+                        console.log(response.data);
+                    })
+                    .catch(function (error) {
+                        console.log(error);
+                    });
+            },
+            handleSizeChange(val) {
+                console.log(`每页 ${val} 条`);
+            },
+            handleCurrentChange(val) {
+                axios.get('http://127.0.0.1:8081/books?page=' + (val - 1) + '&size=10')
+                    .then(function (response) {
+                        app.books = response.data._embedded.books;
+                        app.books.forEach(e => {
+                            e.id = e._links.book.href.split('/').pop();
+                    });
+                    })
+                    .catch(function (error) {
+                        console.log(error);
+                    });
+                console.log(`当前页: ${val}`);
+            },
+            setexpire(key, timeout) {
+                axios.get('http://127.0.0.1:8081/setexpire', {
+                    params: {
+                        key: key,
+                        sec: timeout
+                    }
+                })
+                    .then(function (response) {
+                        app.$message({
+                            message: response.data.message,
+                            type: 'success'
+                        });
+
+                    })
+                    .catch(function (error) {
+                        console.log(error);
+                    });
+            },
+            res() {
+                axios.get('http://127.0.0.1:8081/resqluse')
+                    .then(function (response) {
+                        app.sql = response.data;
+                        app.$message({
+                            message: '重置成功!',
+                            type: 'success'
+                        });
+                    })
+                    .catch(function (error) {
+                        console.log(error);
+                    });
+            }
+        },
+        mounted() {
+
+            axios.get('http://127.0.0.1:8081/books?page=0&size=10')
+                .then(function (response) {
+                    app.books = response.data._embedded.books;
+                    app.books.forEach(e => {
+                        e.id = e._links.book.href.split('/').pop();
+                });
+                })
+                .catch(function (error) {
+                    console.log(error);
+                });
+
+            axios.get('http://127.0.0.1:8081/gethotdata')
+                .then(function (response) {
+                    app.hotData = response.data;
+
+                })
+                .catch(function (error) {
+                    console.log(error);
+                });
+
+            axios.get('http://127.0.0.1:8081/sqluse')
+                .then(function (response) {
+                    app.sql = response.data;
+
+                })
+                .catch(function (error) {
+                    console.log(error);
+                });
+        }
+    });
+
+    function timeout() {
+        clearInterval(window.to);
+        window.to = setInterval(() => {
+            app.cacheValue.timeout -= 1;
+        if (app.cacheValue.timeout <= 0) {
+            clearInterval(to);
+        }
+        if (app.cacheValue.timeout == '') {
+            clearInterval(to);
+        }
+    }, 1000);
+    }
+
+
+    function getRanNum(c) {
+        var result = [];
+        for (var i = 0; i < 6; i++) {
+            var ranNum = Math.ceil(Math.random() * 25); //生成一个0到25的数字
+            //大写字母'A'的ASCII是65,A~Z的ASCII码就是65 + 0~25;然后调用String.fromCharCode()传入ASCII值返回相应的字符并push进数组里
+            result.push(String.fromCharCode(c + ranNum));
+        }
+        return result.join('');
+    }
+</script>
+
+</html>

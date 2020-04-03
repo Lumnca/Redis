@@ -1,0 +1,41 @@
+spring:
+  redis:
+    cluster:
+      ports:
+        - 8001
+        - 8002
+        - 8003
+        - 8004
+        - 8005
+        - 8006
+      host: 47.106.254.86
+      poolConfig:
+        max-total: 1000
+        max-idle: 500
+        max-wait-millis: -1
+        min-idle: 200
+  datasource:
+    url: jdbc:mysql://47.106.254.86/web?characterEncoding=utf8&useSSL=true
+    username: lumnca
+    password: chuan868
+    type: com.alibaba.druid.pool.DruidDataSource
+    driver-class-name: com.mysql.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    database: mysql
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQL57Dialect
+    show-sql: true
+  boot:
+    admin:
+      client:
+        url: http://47.106.254.86:8083
+server:
+  port: 8081
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
