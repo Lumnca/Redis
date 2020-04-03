@@ -15,9 +15,9 @@ spring:
         max-wait-millis: -1
         min-idle: 200
   datasource:
-    url: jdbc:mysql://47.106.254.86/web?characterEncoding=utf8&useSSL=true
-    username: lumnca
-    password: chuan868
+    url: jdbc:mysql://127.0.0.1/XXX?characterEncoding=utf8&useSSL=true
+    username: 你的用户
+    password: 你的密码
     type: com.alibaba.druid.pool.DruidDataSource
     driver-class-name: com.mysql.jdbc.Driver
   jpa:
@@ -28,10 +28,6 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.MySQL57Dialect
     show-sql: true
-  boot:
-    admin:
-      client:
-        url: http://47.106.254.86:8083
 server:
   port: 8081
 management:
