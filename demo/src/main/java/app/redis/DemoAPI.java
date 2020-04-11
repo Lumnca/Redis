@@ -1,6 +1,8 @@
 package app.redis;
 
 
+import app.logger.Log;
+import app.reponseData.Response;
 import com.alibaba.fastjson.JSON;
 import com.netflix.hystrix.contrib.javanica.annotation.HystrixCommand;
 import com.netflix.hystrix.contrib.javanica.annotation.HystrixProperty;
@@ -8,6 +10,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
+
+
 
 @RestController
 public class DemoAPI {
@@ -63,6 +67,7 @@ public class DemoAPI {
     public String fallback(){
         return "请稍后再访问！";
     }
+
     @GetMapping("_4books/{id}")
     @HystrixCommand(fallbackMethod = "fallback2")
     public String getBook4ById(@PathVariable("id")Integer id) {
@@ -73,4 +78,12 @@ public class DemoAPI {
         System.out.println("出现了异常！");
         return bookServer2.getBookById(id);
     }
+
+    @GetMapping("getBookByName")
+    public String getBookByName(String name){
+        return bookServer.getBookByName(name);
+    }
+
+
+
 }

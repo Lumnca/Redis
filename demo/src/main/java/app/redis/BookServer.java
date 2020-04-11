@@ -23,8 +23,15 @@ import org.springframework.stereotype.Service;
     @Cacheable(value = "c1")
     public String getBookById(Integer id){
         System.out.println("==================从redis缓存写入数据==================");
+        String book;
         count++;
-        return JSON.toJSONString(bookDao.getOne(id));
+        try {
+            book = JSON.toJSONString(bookDao.getOne(id));
+        }
+        catch (Exception e){
+            book =  JSON.toJSONString(new Book());
+        }
+        return book;
     }
 
     @CachePut(key = "#book.id")
@@ -37,6 +44,7 @@ import org.springframework.stereotype.Service;
     @CacheEvict(key = "#id")
     public String deleteBookById(Integer id){
         System.out.println("==================deleteBook=====================");
+        //bookDao.deleteById(id);
         return "delete";
     }
 

@@ -49,7 +49,7 @@ public class RedisConfig {
         for(Integer port: ports) {
             nodes.add(new RedisNode(host, port));
         }
-        configuration.setPassword(RedisPassword.of("Redis密码"));
+        configuration.setPassword(RedisPassword.of("chuan.868"));
         configuration.setClusterNodes(nodes);
         return configuration;
     }

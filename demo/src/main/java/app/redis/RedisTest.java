@@ -1,5 +1,6 @@
 package app.redis;
 
+import app.logger.Log;
 import app.reponseData.Response;
 import com.alibaba.fastjson.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,6 +12,7 @@ import redis.clients.jedis.Jedis;
 
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -198,4 +200,18 @@ public class RedisTest {
     public String getBookByName(@PathVariable("name") String name){
         return bookServer.getBookByName(name);
     }
+
+
+    /**
+     *redis其他数据类型返回
+     */
+    @GetMapping("getRList/{key}")
+    public String getRList(@PathVariable("key")String key ){
+        return JSONObject.toJSONString(stringRedisTemplate.opsForList().range(key,0,9));
+    }
+    @GetMapping("getRHash/{key}")
+    public String getRHash(@PathVariable("key")String key ){
+        return JSONObject.toJSONString(stringRedisTemplate.opsForHash().entries(key));
+    }
+
 }
