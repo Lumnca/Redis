@@ -29,6 +29,7 @@ import org.springframework.stereotype.Service;
             book = JSON.toJSONString(bookDao.getOne(id));
         }
         catch (Exception e){
+            //数据不存在时，设定一个默认值
             book =  JSON.toJSONString(new Book());
         }
         return book;
@@ -61,5 +62,10 @@ import org.springframework.stereotype.Service;
     }
     public void setCount(int i){
         count = i;
+    }
+
+    @Cacheable(value = "c1")
+    public String Get(Integer id){
+        return JSON.toJSONString(bookDao.getOne(id));
     }
 }

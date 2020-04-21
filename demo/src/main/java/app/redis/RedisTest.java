@@ -1,5 +1,6 @@
 package app.redis;
 
+import app.course.CourseMapper;
 import app.logger.Log;
 import app.reponseData.Response;
 import com.alibaba.fastjson.JSONObject;
@@ -20,6 +21,8 @@ import java.util.concurrent.TimeUnit;
 @CrossOrigin
 @ConfigurationProperties(prefix = "spring.redis.cluster")
 public class RedisTest {
+    @Autowired
+    CourseMapper logs;
     @Autowired
     BookDao bookService;
     @Autowired
@@ -200,8 +203,6 @@ public class RedisTest {
     public String getBookByName(@PathVariable("name") String name){
         return bookServer.getBookByName(name);
     }
-
-
     /**
      *redis其他数据类型返回
      */
@@ -209,9 +210,15 @@ public class RedisTest {
     public String getRList(@PathVariable("key")String key ){
         return JSONObject.toJSONString(stringRedisTemplate.opsForList().range(key,0,9));
     }
+
     @GetMapping("getRHash/{key}")
     public String getRHash(@PathVariable("key")String key ){
         return JSONObject.toJSONString(stringRedisTemplate.opsForHash().entries(key));
     }
 
+    @GetMapping("relogs")
+    public Response relogs(){
+        logs.delAllData();
+        return  new Response(200,"重置成功！");
+    }
 }
